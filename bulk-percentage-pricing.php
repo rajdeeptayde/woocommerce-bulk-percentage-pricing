@@ -157,15 +157,16 @@ function wbpp_bulk_percentage_pricing_options_page() {
 }
 
 function wbpp_apply_percentge() {	
+			
 		$response['response']='Failed';
 		//get operation type
 		$operation=$_POST["operation"];
         // sanitize percentage value
         $percentage  =$_POST["percentage"];
 		$args = array( 'post_type' => 'product', 'posts_per_page' => -1 );
-		if($operation=="specific_products"):
+		if($operation=="specific_products"){
 		$args['post__in']=$_POST['values'];
-		elseif($operation=="specific_categories"):
+		}elseif($operation=="specific_categories"){
 		$args['tax_query'] = array(
 		array(
 			'taxonomy' => 'product_cat',
@@ -173,31 +174,71 @@ function wbpp_apply_percentge() {
 			'terms'    => $_POST['values'],
 			),
 			);
-		endif;
-		query_posts( $args );
-		while ( have_posts() ) : the_post();
-			$product = new WC_Product( get_the_ID() );
-			if($_POST['type']=='increase-percentge-submit'):
-				$regular_price = $product->regular_price;
-				$product_price = $product->price;
-				if($percentage>=0):
-					$new_regular_price=$regular_price+(($regular_price*$percentage )/100);
-					$new_product_price=$product_price+(($product_price*$percentage )/100);
-				elseif($percentage<0):
-					$percentage*=-1;
-					$new_regular_price=$regular_price-(($regular_price*$percentage )/100);
-					$new_product_price=$product_price-(($product_price*$percentage )/100);
-				endif;	
-				update_post_meta(  get_the_ID(), '_regular_price', $new_regular_price );
-				update_post_meta(  get_the_ID(), '_price', $new_product_price );
-			else:
-			if($percentage<0)
-				$percentage*=-1;
-			$regular_price = $product->regular_price;
-			$sale_price=$regular_price-(($regular_price*$percentage )/100);
-			update_post_meta(  get_the_ID(), '_sale_price', $sale_price );
-			update_post_meta(  get_the_ID(), '_price', $sale_price );
-			endif;
+		}
+		$the_query = new WP_Query( $args );
+	global $post;
+	while ( $the_query->have_posts() ) : $the_query->the_post();
+		//query_posts( $args );
+		//while ( have_posts() ) : the_post();
+			//$product = new WC_Product( get_the_ID() );
+			$product = wc_get_product( $post->ID );
+			if( $product->is_type('variable') ){
+				foreach( $product->get_available_variations() as $variation_values ){
+					$variation_id = $variation_values['variation_id']; // variation id
+					if($_POST['type']=='increase-percentge-submit'){
+						$variable_product1= new WC_Product_Variation( $variation_id );
+						$regular_price = $variable_product1->regular_price;
+						$product_price = $variable_product1->price;
+						if($percentage>=0){
+							$new_regular_price=$regular_price+(($regular_price*$percentage )/100);
+							$new_product_price=$product_price+(($product_price*$percentage )/100);
+						}elseif($percentage<0){
+							$percentage*=-1;
+							$new_regular_price=$regular_price-(($regular_price*$percentage )/100);
+							$new_product_price=$product_price-(($product_price*$percentage )/100);
+						}	
+						update_post_meta(  $variation_id, '_regular_price', $new_regular_price );
+						update_post_meta(  $variation_id, '_price', $new_product_price );
+						wc_delete_product_transients( $variation_id );
+					}else{
+						if($percentage<0){
+							$percentage*=-1;
+						}
+						$variable_product1= new WC_Product_Variation( $variation_id );
+						$regular_price = $variable_product1->regular_price;
+						$sale_price=$regular_price-(($regular_price*$percentage )/100);
+						update_post_meta(  $variation_id, '_sale_price', $sale_price );
+						update_post_meta(  $variation_id, '_price', $sale_price );
+						wc_delete_product_transients( $variation_id );
+					}
+				}
+			}else{
+				if($_POST['type']=='increase-percentge-submit'){
+					$regular_price = $product->regular_price;
+					$product_price = $product->price;
+					if($percentage>=0){
+						$new_regular_price=$regular_price+(($regular_price*$percentage )/100);
+						$new_product_price=$product_price+(($product_price*$percentage )/100);
+					}elseif($percentage<0){
+						$percentage*=-1;
+						$new_regular_price=$regular_price-(($regular_price*$percentage )/100);
+						$new_product_price=$product_price-(($product_price*$percentage )/100);
+					}	
+					update_post_meta(  get_the_ID(), '_regular_price', $new_regular_price );
+					update_post_meta(  get_the_ID(), '_price', $new_product_price );
+				}else{
+					if($percentage<0){
+						$percentage*=-1;
+					}
+					$regular_price = $product->regular_price;
+					$sale_price=$regular_price-(($regular_price*$percentage )/100);
+					update_post_meta(  get_the_ID(), '_sale_price', $sale_price );
+					update_post_meta(  get_the_ID(), '_price', $sale_price );
+				}
+				
+				
+			}
+			
 		endwhile;
 	    header( "Content-Type: application/json" );
 	  	$response['response']="SUCCESS - Percentage : ".$percentage."% applied successfully";
